@@ -1,6 +1,11 @@
 <template>
   <div class="min-h-screen bg-gray-900 text-white p-4">
     <div class="max-w-4xl mx-auto">
+      <!-- Loading State -->
+      <div v-if="loading" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="text-2xl">Loading game data...</div>
+      </div>
+
       <header class="mb-8">
         <h1 class="text-4xl font-bold text-center">VueMafia Lobby</h1>
       </header>
@@ -62,24 +67,30 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, query, where, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 
 const router = useRouter();
 const playerName = ref('');
 const joinPlayerName = ref('');
 const gameCode = ref('');
 const activeGames = ref([]);
+const loading = ref(true);
+
+let unsubscribe = null;
 
 const createGame = async () => {
   if (!playerName.value.trim()) return;
 
   try {
+    const playerId = Date.now().toString();
+    localStorage.setItem('playerId', playerId);
+    
     const gameRef = await addDoc(collection(db, 'games'), {
       players: [{
-        id: Date.now().toString(),
+        id: playerId,
         name: playerName.value,
         role: null,
         isAlive: true
@@ -99,6 +110,9 @@ const joinGame = async () => {
   if (!joinPlayerName.value.trim() || !gameCode.value.trim()) return;
 
   try {
+    const playerId = Date.now().toString();
+    localStorage.setItem('playerId', playerId);
+    
     const gameRef = doc(db, 'games', gameCode.value);
     const gameDoc = await getDoc(gameRef);
 
@@ -107,7 +121,7 @@ const joinGame = async () => {
       if (game.players.length < game.maxPlayers) {
         await updateDoc(gameRef, {
           players: [...game.players, {
-            id: Date.now().toString(),
+            id: playerId,
             name: joinPlayerName.value,
             role: null,
             isAlive: true
@@ -134,20 +148,28 @@ const joinSpecificGame = (gameId) => {
   joinGame();
 };
 
-const fetchActiveGames = async () => {
-  try {
-    const q = query(collection(db, 'games'), where('phase', '==', 'lobby'));
-    const querySnapshot = await getDocs(q);
+const fetchActiveGames = () => {
+  const q = query(collection(db, 'games'), where('phase', '==', 'lobby'));
+  unsubscribe = onSnapshot(q, (querySnapshot) => {
     activeGames.value = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-  } catch (error) {
+    loading.value = false;
+  }, (error) => {
     console.error('Error fetching active games:', error);
-  }
+    loading.value = false;
+  });
 };
 
 onMounted(() => {
   fetchActiveGames();
+});
+
+// Clean up listener when component is unmounted
+onUnmounted(() => {
+  if (unsubscribe) {
+    unsubscribe();
+  }
 });
 </script>

@@ -1,14 +1,19 @@
 <template>
   <div class="min-h-screen bg-gray-900 text-white p-4">
     <div class="max-w-6xl mx-auto">
+      <!-- Loading State -->
+      <div v-if="loading" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="text-2xl">Loading game data...</div>
+      </div>
+
       <!-- Game Header -->
       <header class="mb-8">
         <h1 class="text-4xl font-bold text-center">VueMafia</h1>
-        <div class="flex justify-between items-center mt-4">
+        <div class="flex justify-between items-center mt-4 table">
           <div class="text-xl">Room: {{ roomId }}</div>
           <div class="text-xl">Phase: {{ gamePhase }}</div>
           <div v-if="currentPlayer" class="text-xl">
-            Your Role: {{ currentPlayer.role || 'Not assigned' }}
+            Playing as: {{ currentPlayer.name }} ({{ currentPlayer.role || 'Not assigned' }})
           </div>
         </div>
       </header>
@@ -37,6 +42,11 @@
                   class="w-full mt-4 p-2 bg-green-600 hover:bg-green-700 rounded">
             Start Game
           </button>
+          <button v-if="isHost && gamePhase === 'night' && allNightActionsComplete" 
+                  @click="endNightPhase"
+                  class="w-full mt-4 p-2 bg-blue-600 hover:bg-blue-700 rounded">
+            End Night Phase
+          </button>
         </div>
 
         <!-- Game Actions -->
@@ -51,10 +61,16 @@
             <div class="space-y-2">
               <button v-for="player in alivePlayers" :key="player.id"
                       @click="voteToEliminate(player.id)"
-                      :disabled="!currentPlayer?.isAlive"
+                      :disabled="!currentPlayer?.isAlive || hasVoted"
                       class="w-full p-2 bg-red-600 hover:bg-red-700 rounded disabled:opacity-50">
                 Vote to eliminate {{ player.name }}
               </button>
+            </div>
+            <div v-if="votes.length > 0" class="mt-4">
+              <h4 class="text-lg mb-2">Current Votes:</h4>
+              <div v-for="vote in votes" :key="vote.voterId" class="text-sm">
+                {{ getPlayerName(vote.voterId) }} voted for {{ getPlayerName(vote.targetId) }}
+              </div>
             </div>
           </div>
           <div v-else class="space-y-4">
@@ -63,7 +79,8 @@
               <h4 class="text-lg">Mafia Action</h4>
               <button v-for="player in alivePlayers" :key="player.id"
                       @click="mafiaKill(player.id)"
-                      class="w-full p-2 bg-red-600 hover:bg-red-700 rounded">
+                      :disabled="nightActions.mafia !== null"
+                      class="w-full p-2 bg-red-600 hover:bg-red-700 rounded disabled:opacity-50">
                 Kill {{ player.name }}
               </button>
             </div>
@@ -71,7 +88,8 @@
               <h4 class="text-lg">Doctor Action</h4>
               <button v-for="player in alivePlayers" :key="player.id"
                       @click="doctorSave(player.id)"
-                      class="w-full p-2 bg-green-600 hover:bg-green-700 rounded">
+                      :disabled="nightActions.doctor !== null"
+                      class="w-full p-2 bg-green-600 hover:bg-green-700 rounded disabled:opacity-50">
                 Save {{ player.name }}
               </button>
             </div>
@@ -79,7 +97,8 @@
               <h4 class="text-lg">Detective Action</h4>
               <button v-for="player in alivePlayers" :key="player.id"
                       @click="detectiveCheck(player.id)"
-                      class="w-full p-2 bg-blue-600 hover:bg-blue-700 rounded">
+                      :disabled="nightActions.detective !== null"
+                      class="w-full p-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">
                 Check {{ player.name }}
               </button>
             </div>
@@ -111,7 +130,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { db } from '../firebase/config';
 import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -124,6 +143,16 @@ const messages = ref([]);
 const newMessage = ref('');
 const currentPlayer = ref(null);
 const maxPlayers = 8;
+const loading = ref(true);
+const votes = ref([]);
+const hasVoted = ref(false);
+const nightActions = ref({
+  mafia: null,
+  doctor: null,
+  detective: null
+});
+
+let unsubscribe = null;
 
 const isDayPhase = computed(() => gamePhase.value === 'day');
 const alivePlayers = computed(() => players.value.filter(p => p.isAlive));
@@ -131,6 +160,19 @@ const isMafia = computed(() => currentPlayer.value?.role === 'mafia');
 const isDoctor = computed(() => currentPlayer.value?.role === 'doctor');
 const isDetective = computed(() => currentPlayer.value?.role === 'detective');
 const isHost = computed(() => players.value[0]?.id === currentPlayer.value?.id);
+const allNightActionsComplete = computed(() => {
+  if (!isMafia.value && !isDoctor.value && !isDetective.value) return true;
+  return (
+    (!isMafia.value || nightActions.value.mafia !== null) &&
+    (!isDoctor.value || nightActions.value.doctor !== null) &&
+    (!isDetective.value || nightActions.value.detective !== null)
+  );
+});
+
+const getPlayerName = (playerId) => {
+  const player = players.value.find(p => p.id === playerId);
+  return player ? player.name : 'Unknown';
+};
 
 const startGame = async () => {
   if (players.value.length < 5) {
@@ -151,7 +193,8 @@ const startGame = async () => {
       mafia: null,
       doctor: null,
       detective: null
-    }
+    },
+    votes: []
   });
 };
 
@@ -174,11 +217,16 @@ const assignRoles = (playerCount) => {
   }
   
   // Shuffle roles
-  return roles.sort(() => Math.random() - 0.5);
+  for (let i = roles.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [roles[i], roles[j]] = [roles[j], roles[i]];
+  }
+  
+  return roles;
 };
 
 const voteToEliminate = async (playerId) => {
-  if (!currentPlayer.value?.isAlive) return;
+  if (!currentPlayer.value?.isAlive || hasVoted.value) return;
 
   const gameRef = doc(db, 'games', roomId);
   await updateDoc(gameRef, {
@@ -187,6 +235,97 @@ const voteToEliminate = async (playerId) => {
       targetId: playerId
     })
   });
+
+  hasVoted.value = true;
+
+  // Check if all alive players have voted
+  const aliveCount = alivePlayers.value.length;
+  const currentVotes = votes.value.length;
+  if (currentVotes + 1 >= aliveCount) {
+    // Process votes
+    const voteCounts = {};
+    votes.value.forEach(vote => {
+      voteCounts[vote.targetId] = (voteCounts[vote.targetId] || 0) + 1;
+    });
+
+    const maxVotes = Math.max(...Object.values(voteCounts));
+    const eliminatedPlayers = Object.entries(voteCounts)
+      .filter(([_, count]) => count === maxVotes)
+      .map(([id]) => id);
+
+    if (eliminatedPlayers.length === 1) {
+      const eliminatedPlayerId = eliminatedPlayers[0];
+      const updatedPlayers = players.value.map(player => {
+        if (player.id === eliminatedPlayerId) {
+          return { ...player, isAlive: false };
+        }
+        return player;
+      });
+
+      await updateDoc(gameRef, {
+        players: updatedPlayers,
+        phase: 'night',
+        votes: [],
+        nightActions: {
+          mafia: null,
+          doctor: null,
+          detective: null
+        }
+      });
+
+      checkWinConditions(updatedPlayers);
+    }
+  }
+};
+
+const endNightPhase = async () => {
+  const gameRef = doc(db, 'games', roomId);
+  const targetPlayer = players.value.find(p => p.id === nightActions.value.mafia);
+  const savedPlayer = players.value.find(p => p.id === nightActions.value.doctor);
+
+  // Process night actions
+  if (targetPlayer && targetPlayer.id !== savedPlayer?.id) {
+    const updatedPlayers = players.value.map(player => {
+      if (player.id === targetPlayer.id) {
+        return { ...player, isAlive: false };
+      }
+      return player;
+    });
+
+    await updateDoc(gameRef, {
+      players: updatedPlayers,
+      phase: 'day',
+      nightActions: {
+        mafia: null,
+        doctor: null,
+        detective: null
+      }
+    });
+
+    // Check win conditions
+    checkWinConditions(updatedPlayers);
+  } else {
+    await updateDoc(gameRef, {
+      phase: 'day',
+      nightActions: {
+        mafia: null,
+        doctor: null,
+        detective: null
+      }
+    });
+  }
+};
+
+const checkWinConditions = (players) => {
+  const alivePlayers = players.filter(p => p.isAlive);
+  const mafiaPlayers = alivePlayers.filter(p => p.role === 'mafia');
+  const civilianPlayers = alivePlayers.filter(p => p.role !== 'mafia');
+
+  if (mafiaPlayers.length === 0) {
+    alert('Civilians win! All mafia members have been eliminated.');
+  } else if (mafiaPlayers.length >= civilianPlayers.length) {
+    alert('Mafia wins! They outnumber the civilians.');
+  }
 };
 
 const mafiaKill = async (playerId) => {
@@ -226,16 +365,39 @@ const sendMessage = () => {
 // Listen to game state changes
 onMounted(() => {
   const gameRef = doc(db, 'games', roomId);
-  onSnapshot(gameRef, (doc) => {
+  unsubscribe = onSnapshot(gameRef, (doc) => {
     if (doc.exists()) {
       const data = doc.data();
       players.value = data.players;
       gamePhase.value = data.phase;
+      nightActions.value = data.nightActions || {
+        mafia: null,
+        doctor: null,
+        detective: null
+      };
+      votes.value = data.votes || [];
       
       // Set current player
       const playerId = localStorage.getItem('playerId');
       currentPlayer.value = players.value.find(p => p.id === playerId);
+      
+      // Reset vote status when phase changes
+      if (gamePhase.value === 'day') {
+        hasVoted.value = false;
+      }
+      
+      loading.value = false;
     }
+  }, (error) => {
+    console.error('Error listening to game updates:', error);
+    loading.value = false;
   });
+});
+
+// Clean up listener when component is unmounted
+onUnmounted(() => {
+  if (unsubscribe) {
+    unsubscribe();
+  }
 });
 </script> 

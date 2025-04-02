@@ -65,7 +65,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const router = useRouter();
 const playerName = ref('');

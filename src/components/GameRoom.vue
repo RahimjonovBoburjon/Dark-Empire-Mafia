@@ -7,6 +7,9 @@
         <div class="flex justify-between items-center mt-4">
           <div class="text-xl">Room: {{ roomId }}</div>
           <div class="text-xl">Phase: {{ gamePhase }}</div>
+          <div v-if="currentPlayer" class="text-xl">
+            Your Role: {{ currentPlayer.role || 'Not assigned' }}
+          </div>
         </div>
       </header>
 
@@ -19,28 +22,44 @@
             <div v-for="player in players" :key="player.id" 
                  class="flex items-center justify-between p-2 bg-gray-700 rounded">
               <span>{{ player.name }}</span>
-              <span v-if="player.isAlive" class="text-green-500">Alive</span>
-              <span v-else class="text-red-500">Dead</span>
+              <div class="flex items-center gap-2">
+                <span v-if="player.isAlive" class="text-green-500">Alive</span>
+                <span v-else class="text-red-500">Dead</span>
+                <span v-if="player.role && (currentPlayer?.role === 'detective' || !player.isAlive)" 
+                      class="text-yellow-500">
+                  ({{ player.role }})
+                </span>
+              </div>
             </div>
           </div>
+          <button v-if="isHost && gamePhase === 'lobby'" 
+                  @click="startGame"
+                  class="w-full mt-4 p-2 bg-green-600 hover:bg-green-700 rounded">
+            Start Game
+          </button>
         </div>
 
         <!-- Game Actions -->
         <div class="bg-gray-800 p-4 rounded-lg">
           <h2 class="text-2xl font-semibold mb-4">Actions</h2>
-          <div v-if="isDayPhase" class="space-y-4">
+          <div v-if="gamePhase === 'lobby'" class="text-center">
+            <p>Waiting for more players...</p>
+            <p>Current players: {{ players.length }}/{{ maxPlayers }}</p>
+          </div>
+          <div v-else-if="isDayPhase" class="space-y-4">
             <h3 class="text-xl">Day Phase - Vote to Eliminate</h3>
             <div class="space-y-2">
               <button v-for="player in alivePlayers" :key="player.id"
                       @click="voteToEliminate(player.id)"
-                      class="w-full p-2 bg-red-600 hover:bg-red-700 rounded">
+                      :disabled="!currentPlayer?.isAlive"
+                      class="w-full p-2 bg-red-600 hover:bg-red-700 rounded disabled:opacity-50">
                 Vote to eliminate {{ player.name }}
               </button>
             </div>
           </div>
           <div v-else class="space-y-4">
             <h3 class="text-xl">Night Phase</h3>
-            <div v-if="isMafia" class="space-y-2">
+            <div v-if="isMafia && currentPlayer?.isAlive" class="space-y-2">
               <h4 class="text-lg">Mafia Action</h4>
               <button v-for="player in alivePlayers" :key="player.id"
                       @click="mafiaKill(player.id)"
@@ -48,7 +67,7 @@
                 Kill {{ player.name }}
               </button>
             </div>
-            <div v-if="isDoctor" class="space-y-2">
+            <div v-if="isDoctor && currentPlayer?.isAlive" class="space-y-2">
               <h4 class="text-lg">Doctor Action</h4>
               <button v-for="player in alivePlayers" :key="player.id"
                       @click="doctorSave(player.id)"
@@ -56,7 +75,7 @@
                 Save {{ player.name }}
               </button>
             </div>
-            <div v-if="isDetective" class="space-y-2">
+            <div v-if="isDetective && currentPlayer?.isAlive" class="space-y-2">
               <h4 class="text-lg">Detective Action</h4>
               <button v-for="player in alivePlayers" :key="player.id"
                       @click="detectiveCheck(player.id)"
@@ -92,55 +111,131 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { db } from '../firebase/config';
-import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 
 const route = useRoute();
 const roomId = route.params.id;
 const players = ref([]);
-const gamePhase = ref('day');
+const gamePhase = ref('lobby');
 const messages = ref([]);
 const newMessage = ref('');
 const currentPlayer = ref(null);
+const maxPlayers = 8;
 
 const isDayPhase = computed(() => gamePhase.value === 'day');
 const alivePlayers = computed(() => players.value.filter(p => p.isAlive));
 const isMafia = computed(() => currentPlayer.value?.role === 'mafia');
 const isDoctor = computed(() => currentPlayer.value?.role === 'doctor');
 const isDetective = computed(() => currentPlayer.value?.role === 'detective');
+const isHost = computed(() => players.value[0]?.id === currentPlayer.value?.id);
 
-// TODO: Implement game logic functions
-const voteToEliminate = (playerId) => {
-  // Implement voting logic
+const startGame = async () => {
+  if (players.value.length < 5) {
+    alert('Need at least 5 players to start the game!');
+    return;
+  }
+
+  const roles = assignRoles(players.value.length);
+  const updatedPlayers = players.value.map((player, index) => ({
+    ...player,
+    role: roles[index]
+  }));
+
+  await updateDoc(doc(db, 'games', roomId), {
+    players: updatedPlayers,
+    phase: 'night',
+    nightActions: {
+      mafia: null,
+      doctor: null,
+      detective: null
+    }
+  });
 };
 
-const mafiaKill = (playerId) => {
-  // Implement mafia kill action
+const assignRoles = (playerCount) => {
+  const roles = [];
+  const mafiaCount = Math.max(1, Math.floor(playerCount / 4));
+  
+  // Add mafia roles
+  for (let i = 0; i < mafiaCount; i++) {
+    roles.push('mafia');
+  }
+  
+  // Add special roles
+  roles.push('doctor');
+  roles.push('detective');
+  
+  // Fill remaining with civilians
+  while (roles.length < playerCount) {
+    roles.push('civilian');
+  }
+  
+  // Shuffle roles
+  return roles.sort(() => Math.random() - 0.5);
 };
 
-const doctorSave = (playerId) => {
-  // Implement doctor save action
+const voteToEliminate = async (playerId) => {
+  if (!currentPlayer.value?.isAlive) return;
+
+  const gameRef = doc(db, 'games', roomId);
+  await updateDoc(gameRef, {
+    votes: arrayUnion({
+      voterId: currentPlayer.value.id,
+      targetId: playerId
+    })
+  });
 };
 
-const detectiveCheck = (playerId) => {
-  // Implement detective check action
+const mafiaKill = async (playerId) => {
+  if (!currentPlayer.value?.isAlive || !isMafia.value) return;
+
+  const gameRef = doc(db, 'games', roomId);
+  await updateDoc(gameRef, {
+    'nightActions.mafia': playerId
+  });
+};
+
+const doctorSave = async (playerId) => {
+  if (!currentPlayer.value?.isAlive || !isDoctor.value) return;
+
+  const gameRef = doc(db, 'games', roomId);
+  await updateDoc(gameRef, {
+    'nightActions.doctor': playerId
+  });
+};
+
+const detectiveCheck = async (playerId) => {
+  if (!currentPlayer.value?.isAlive || !isDetective.value) return;
+
+  const gameRef = doc(db, 'games', roomId);
+  await updateDoc(gameRef, {
+    'nightActions.detective': playerId
+  });
 };
 
 const sendMessage = () => {
   if (newMessage.value.trim()) {
-    // Implement chat message sending
+    // TODO: Implement chat message sending
     newMessage.value = '';
   }
 };
 
 // Listen to game state changes
-onSnapshot(doc(db, 'games', roomId), (doc) => {
-  if (doc.exists()) {
-    const data = doc.data();
-    players.value = data.players;
-    gamePhase.value = data.phase;
-  }
+onMounted(() => {
+  const gameRef = doc(db, 'games', roomId);
+  onSnapshot(gameRef, (doc) => {
+    if (doc.exists()) {
+      const data = doc.data();
+      players.value = data.players;
+      gamePhase.value = data.phase;
+      
+      // Set current player
+      const playerId = localStorage.getItem('playerId');
+      currentPlayer.value = players.value.find(p => p.id === playerId);
+    }
+  });
 });
 </script> 

@@ -1,11 +1,12 @@
 <template>
-
+  <router-view></router-view>
 </template>
 
-<script>
-export default {
-
-}
+<script setup>
 </script>
 
-<style></style>
+<style>
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+</style>

@@ -4,7 +4,7 @@
       <!-- Loading State -->
       <div v-if="loading" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center">
         <div class="flex flex-col items-center">
-          <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <div class="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4"></div>
           <div class="text-2xl font-light">Loading game data...</div>
         </div>
       </div>
@@ -15,6 +15,44 @@
         </h1>
         <p class="text-gray-400 text-lg">Enter the shadows of deception and power</p>
       </header>
+
+      <!-- Previously Joined Games -->
+      <div v-if="previousGames.length > 0" class="mb-12">
+        <div class="bg-gray-800/50 backdrop-blur-sm p-8 rounded-xl border border-gray-700 shadow-xl">
+          <h2 class="text-2xl font-semibold mb-6 flex items-center">
+            <span class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center mr-3">🔄</span>
+            Your Previous Games
+          </h2>
+          <div class="space-y-4">
+            <div v-for="game in previousGames" :key="game.id"
+              class="flex items-center justify-between p-4 bg-gray-700/30 rounded-lg border border-gray-600 hover:bg-gray-700/50 transition-all duration-300">
+              <div class="flex items-center">
+                <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                <div>
+                  <span class="font-semibold">Game {{ game.id }}</span>
+                  <span class="text-gray-400 ml-2">
+                    ({{ game.players.length }}/{{ game.maxPlayers }} players)
+                  </span>
+                </div>
+              </div>
+              <div class="flex space-x-2">
+                <button 
+                  @click="rejoinGame(game.id)" 
+                  class="px-6 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-lg font-medium transform hover:scale-[1.02] transition-all duration-300 shadow-lg"
+                >
+                  Rejoin
+                </button>
+                <button 
+                  @click="removeGame(game.id)" 
+                  class="px-6 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transform hover:scale-[1.02] transition-all duration-300"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
         <!-- Create Game -->
@@ -28,7 +66,7 @@
               <label class="block mb-2 text-gray-300">Your Name</label>
               <input 
                 v-model="playerName" 
-                class="w-full p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                class="w-full p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
                 placeholder="Enter your name"
               >
             </div>
@@ -54,7 +92,7 @@
               <label class="block mb-2 text-gray-300">Your Name</label>
               <input 
                 v-model="joinPlayerName" 
-                class="w-full p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                class="w-full p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
                 placeholder="Enter your name"
               >
             </div>
@@ -62,7 +100,7 @@
               <label class="block mb-2 text-gray-300">Game Code</label>
               <input 
                 v-model="gameCode" 
-                class="w-full p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                class="w-full p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
                 placeholder="Enter game code"
               >
             </div>
@@ -125,6 +163,7 @@ const playerName = ref('');
 const joinPlayerName = ref('');
 const gameCode = ref('');
 const activeGames = ref([]);
+const previousGames = ref([]);
 const loading = ref(true);
 
 let unsubscribe = null;
@@ -148,6 +187,14 @@ const createGame = async () => {
       createdAt: new Date()
     });
 
+    // Save to previous games
+    const gameData = {
+      id: gameRef.id,
+      players: [{ id: playerId, name: playerName.value, isAlive: true }],
+      maxPlayers: 8
+    };
+    saveToPreviousGames(gameData);
+    
     router.push(`/game/${gameRef.id}`);
   } catch (error) {
     console.error('Error creating game:', error);
@@ -167,6 +214,13 @@ const joinGame = async () => {
     if (gameDoc.exists()) {
       const game = gameDoc.data();
       if (game.players.length < game.maxPlayers) {
+        // Save to previous games
+        saveToPreviousGames({
+          id: gameCode.value,
+          players: game.players,
+          maxPlayers: game.maxPlayers
+        });
+        
         await updateDoc(gameRef, {
           players: [...game.players, {
             id: playerId,
@@ -210,7 +264,34 @@ const fetchActiveGames = () => {
   });
 };
 
+const rejoinGame = (gameId) => {
+  router.push(`/game/${gameId}`);
+};
+
+const removeGame = (gameId) => {
+  previousGames.value = previousGames.value.filter(game => game.id !== gameId);
+  localStorage.setItem('previousGames', JSON.stringify(previousGames.value));
+};
+
+const saveToPreviousGames = (gameData) => {
+  // Check if game already exists in previous games
+  const existingGameIndex = previousGames.value.findIndex(game => game.id === gameData.id);
+  
+  if (existingGameIndex === -1) {
+    previousGames.value.push(gameData);
+  } else {
+    previousGames.value[existingGameIndex] = gameData;
+  }
+  
+  localStorage.setItem('previousGames', JSON.stringify(previousGames.value));
+};
+
 onMounted(() => {
+  // Load previous games from localStorage
+  const savedGames = localStorage.getItem('previousGames');
+  if (savedGames) {
+    previousGames.value = JSON.parse(savedGames);
+  }
   fetchActiveGames();
 });
 

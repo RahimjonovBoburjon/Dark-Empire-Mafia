@@ -15,7 +15,7 @@
           </div>
           <button @click="returnToLobby" class="w-full mt-6 p-3 bg-blue-600 hover:bg-blue-700 rounded">
             Return to Lobby
-          </button>
+          </button>                                                                                       
         </div>
       </div>
 

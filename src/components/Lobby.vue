@@ -10,10 +10,10 @@
       </div>
 
       <header class="mb-12 text-center">
-        <h1 class="text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-          VueMafia
+        <h1 class="text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-red-800">
+          Dark Empire: Mafia
         </h1>
-        <p class="text-gray-400 text-lg">The Ultimate Online Mafia Game</p>
+        <p class="text-gray-400 text-lg">Enter the shadows of deception and power</p>
       </header>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">

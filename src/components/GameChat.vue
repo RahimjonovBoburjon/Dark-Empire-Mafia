@@ -17,7 +17,7 @@
         <p class="text-gray-200">{{ message.content }}</p>
       </div>
     </div>
-    <div class="flex space-x-2 mt-auto">
+    <div class="sticky bottom-0 flex space-x-2 p-2 mb-8">
       <input v-model="newMessage"
         class="flex-1 p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
         placeholder="Type your message..."

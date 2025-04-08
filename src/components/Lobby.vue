@@ -153,20 +153,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, query, where, doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, getDoc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 
 const router = useRouter();
-const playerName = ref('');
-const joinPlayerName = ref('');
+const playerName = ref(localStorage.getItem('playerName') || '');
+const joinPlayerName = ref(localStorage.getItem('playerName') || '');
 const gameCode = ref('');
 const activeGames = ref([]);
 const previousGames = ref([]);
 const loading = ref(true);
 
 let unsubscribe = null;
+
+// Watch for changes in player names and save to localStorage
+watch(playerName, (newName) => {
+  if (newName.trim()) {
+    localStorage.setItem('playerName', newName);
+    joinPlayerName.value = newName;
+  }
+});
+
+watch(joinPlayerName, (newName) => {
+  if (newName.trim()) {
+    localStorage.setItem('playerName', newName);
+    playerName.value = newName;
+  }
+});
 
 const createGame = async () => {
   if (!playerName.value.trim()) return;
@@ -282,9 +297,21 @@ const removeGame = async (gameId) => {
       // Remove player from the game
       const updatedPlayers = game.players.filter(player => player.id !== playerId);
       
-      await updateDoc(gameRef, {
-        players: updatedPlayers
-      });
+      if (updatedPlayers.length === 0) {
+        // If no players remain, delete the game
+        await deleteDoc(gameRef);
+        
+        // Also delete all messages for this game
+        const messagesRef = collection(db, 'games', gameId, 'messages');
+        const messagesSnapshot = await getDocs(messagesRef);
+        const deletePromises = messagesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deletePromises);
+      } else {
+        // Update the game with remaining players
+        await updateDoc(gameRef, {
+          players: updatedPlayers
+        });
+      }
 
       // Remove from local storage
       previousGames.value = previousGames.value.filter(game => game.id !== gameId);

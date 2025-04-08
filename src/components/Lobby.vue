@@ -70,6 +70,15 @@
                 placeholder="Enter your name"
               >
             </div>
+            <div>
+              <label class="block mb-2 text-gray-300">Number of Players (5-20)</label>
+              <select 
+                v-model="maxPlayers" 
+                class="w-full p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
+              >
+                <option v-for="n in 16" :key="n" :value="n + 4">{{ n + 4 }} players</option>
+              </select>
+            </div>
             <button 
               @click="createGame" 
               class="w-full p-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg font-medium transform hover:scale-[1.02] transition-all duration-300 shadow-lg"
@@ -165,6 +174,7 @@ const gameCode = ref('');
 const activeGames = ref([]);
 const previousGames = ref([]);
 const loading = ref(true);
+const maxPlayers = ref(8); // Default to 8 players
 
 let unsubscribe = null;
 
@@ -198,15 +208,20 @@ const createGame = async () => {
         isAlive: true
       }],
       phase: 'lobby',
-      maxPlayers: 8,
-      createdAt: new Date()
+      maxPlayers: maxPlayers.value,
+      createdAt: new Date(),
+      settings: {
+        mafiaCount: getMafiaCount(maxPlayers.value),
+        doctorCount: 1,
+        detectiveCount: 1
+      }
     });
 
     // Save to previous games
     const gameData = {
       id: gameRef.id,
       players: [{ id: playerId, name: playerName.value, isAlive: true }],
-      maxPlayers: 8
+      maxPlayers: maxPlayers.value
     };
     saveToPreviousGames(gameData);
     
@@ -333,6 +348,15 @@ const saveToPreviousGames = (gameData) => {
   }
   
   localStorage.setItem('previousGames', JSON.stringify(previousGames.value));
+};
+
+// Helper function to determine mafia count based on player count
+const getMafiaCount = (playerCount) => {
+  if (playerCount === 5) return 1;
+  if (playerCount <= 7) return 2;
+  if (playerCount <= 10) return 2;
+  if (playerCount <= 14) return 3;
+  return 4; // For 15-20 players
 };
 
 onMounted(() => {

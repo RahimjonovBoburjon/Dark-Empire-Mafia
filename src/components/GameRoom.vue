@@ -4,9 +4,11 @@
       <!-- Game Header -->
       <header class="mb-8 flex items-center justify-between">
         <div>
-          <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-red-800">
-            Dark Empire: Mafia
-          </h1>
+          <a href="/">
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-red-800">
+              Dark Empire: Mafia
+            </h1>
+          </a>
           <p class="text-gray-400">Game Room: {{ gameId }}</p>
         </div>
         <div class="flex items-center space-x-4">
@@ -61,10 +63,9 @@
                 <div class="bg-gray-700/30 p-4 rounded-lg border border-gray-600">
                   <h3 class="font-semibold mb-2">Vote to Eliminate</h3>
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button v-for="player in alivePlayers" :key="player.id"
-                      @click="vote(player.id)"
+                    <button v-for="player in alivePlayers" :key="player.id" @click="vote(player.id)"
                       class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-all duration-300"
-                      :class="{'ring-2 ring-red-500': currentVote === player.id}">
+                      :class="{ 'ring-2 ring-red-500': currentVote === player.id }">
                       {{ player.name }}
                     </button>
                   </div>
@@ -76,34 +77,33 @@
                 <div v-if="currentPlayer.role === 'mafia'" class="bg-gray-700/30 p-4 rounded-lg border border-gray-600">
                   <h3 class="font-semibold mb-2">Choose Target</h3>
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button v-for="player in alivePlayers" :key="player.id"
-                      @click="mafiaAction(player.id)"
+                    <button v-for="player in alivePlayers" :key="player.id" @click="mafiaAction(player.id)"
                       class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-all duration-300"
-                      :class="{'ring-2 ring-red-500': mafiaTarget === player.id}">
+                      :class="{ 'ring-2 ring-red-500': mafiaTarget === player.id }">
                       {{ player.name }}
                     </button>
                   </div>
                 </div>
 
-                <div v-if="currentPlayer.role === 'doctor'" class="bg-gray-700/30 p-4 rounded-lg border border-gray-600">
+                <div v-if="currentPlayer.role === 'doctor'"
+                  class="bg-gray-700/30 p-4 rounded-lg border border-gray-600">
                   <h3 class="font-semibold mb-2">Choose to Protect</h3>
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button v-for="player in alivePlayers" :key="player.id"
-                      @click="doctorAction(player.id)"
+                    <button v-for="player in alivePlayers" :key="player.id" @click="doctorAction(player.id)"
                       class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-all duration-300"
-                      :class="{'ring-2 ring-green-500': doctorTarget === player.id}">
+                      :class="{ 'ring-2 ring-green-500': doctorTarget === player.id }">
                       {{ player.name }}
                     </button>
                   </div>
                 </div>
 
-                <div v-if="currentPlayer.role === 'detective'" class="bg-gray-700/30 p-4 rounded-lg border border-gray-600">
+                <div v-if="currentPlayer.role === 'detective'"
+                  class="bg-gray-700/30 p-4 rounded-lg border border-gray-600">
                   <h3 class="font-semibold mb-2">Investigate Player</h3>
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button v-for="player in alivePlayers" :key="player.id"
-                      @click="detectiveAction(player.id)"
+                    <button v-for="player in alivePlayers" :key="player.id" @click="detectiveAction(player.id)"
                       class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-all duration-300"
-                      :class="{'ring-2 ring-blue-500': detectiveTarget === player.id}">
+                      :class="{ 'ring-2 ring-blue-500': detectiveTarget === player.id }">
                       {{ player.name }}
                     </button>
                   </div>
@@ -130,7 +130,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { db } from '../firebase/config';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
 import GameChat from './GameChat.vue';
 
 const route = useRoute();
@@ -143,6 +143,7 @@ const doctorTarget = ref(null);
 const detectiveTarget = ref(null);
 const messages = ref([]);
 const newMessage = ref('');
+const mafiaTargets = ref({});
 
 let unsubscribe = null;
 
@@ -156,8 +157,68 @@ const vote = async (playerId) => {
 };
 
 const mafiaAction = async (playerId) => {
-  mafiaTarget.value = playerId;
-  // Implement mafia action logic
+  try {
+    const gameRef = doc(db, 'games', gameId);
+    const gameDoc = await getDoc(gameRef);
+    
+    if (gameDoc.exists()) {
+      const game = gameDoc.data();
+      const currentMafia = game.players.filter(p => p.role === 'mafia' && p.isAlive);
+      
+      // If this is the first mafia to choose
+      if (!mafiaTargets.value[playerId]) {
+        mafiaTargets.value[playerId] = currentPlayer.value.id;
+        
+        // If all mafia have chosen
+        if (Object.keys(mafiaTargets.value).length === currentMafia.length) {
+          // Get unique targets
+          const uniqueTargets = [...new Set(Object.values(mafiaTargets.value))];
+          
+          // If all mafia chose the same target
+          if (uniqueTargets.length === 1) {
+            await killPlayer(uniqueTargets[0]);
+          } else {
+            // Randomly select one of the targets
+            const randomTarget = uniqueTargets[Math.floor(Math.random() * uniqueTargets.length)];
+            await killPlayer(randomTarget);
+          }
+          
+          // Clear mafia targets
+          mafiaTargets.value = {};
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error in mafia action:', error);
+  }
+};
+
+const killPlayer = async (playerId) => {
+  try {
+    const gameRef = doc(db, 'games', gameId);
+    const gameDoc = await getDoc(gameRef);
+    
+    if (gameDoc.exists()) {
+      const game = gameDoc.data();
+      const updatedPlayers = game.players.map(player => {
+        if (player.id === playerId) {
+          return { ...player, isAlive: false };
+        }
+        return player;
+      });
+      
+      await updateDoc(gameRef, {
+        players: updatedPlayers,
+        lastNightAction: {
+          type: 'kill',
+          target: playerId,
+          timestamp: new Date()
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error killing player:', error);
+  }
 };
 
 const doctorAction = async (playerId) => {
@@ -172,7 +233,7 @@ const detectiveAction = async (playerId) => {
 
 const sendMessage = async () => {
   if (!newMessage.value.trim()) return;
-  
+
   const message = {
     id: Date.now().toString(),
     sender: currentPlayer.value.name,
@@ -180,7 +241,7 @@ const sendMessage = async () => {
     timestamp: new Date().toLocaleTimeString(),
     type: 'player'
   };
-  
+
   messages.value.push(message);
   newMessage.value = '';
 };
@@ -200,4 +261,4 @@ onUnmounted(() => {
     unsubscribe();
   }
 });
-</script> 
+</script>

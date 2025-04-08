@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-4">
     <div class="max-w-6xl mx-auto">
       <!-- Loading State -->
-      <div v-if="loading" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center">
+      <div v-if="loading" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
         <div class="flex flex-col items-center">
           <div class="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4"></div>
           <div class="text-2xl font-light">Loading game data...</div>
@@ -251,6 +251,7 @@ const joinSpecificGame = (gameId) => {
 };
 
 const fetchActiveGames = () => {
+  loading.value = true;
   const q = query(collection(db, 'games'), where('phase', '==', 'lobby'));
   unsubscribe = onSnapshot(q, (querySnapshot) => {
     activeGames.value = querySnapshot.docs.map(doc => ({
@@ -268,9 +269,30 @@ const rejoinGame = (gameId) => {
   router.push(`/game/${gameId}`);
 };
 
-const removeGame = (gameId) => {
-  previousGames.value = previousGames.value.filter(game => game.id !== gameId);
-  localStorage.setItem('previousGames', JSON.stringify(previousGames.value));
+const removeGame = async (gameId) => {
+  try {
+    const playerId = localStorage.getItem('playerId');
+    if (!playerId) return;
+
+    const gameRef = doc(db, 'games', gameId);
+    const gameDoc = await getDoc(gameRef);
+
+    if (gameDoc.exists()) {
+      const game = gameDoc.data();
+      // Remove player from the game
+      const updatedPlayers = game.players.filter(player => player.id !== playerId);
+      
+      await updateDoc(gameRef, {
+        players: updatedPlayers
+      });
+
+      // Remove from local storage
+      previousGames.value = previousGames.value.filter(game => game.id !== gameId);
+      localStorage.setItem('previousGames', JSON.stringify(previousGames.value));
+    }
+  } catch (error) {
+    console.error('Error removing player from game:', error);
+  }
 };
 
 const saveToPreviousGames = (gameData) => {

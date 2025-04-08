@@ -113,35 +113,12 @@
           </div>
 
           <!-- Chat Area -->
-          <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700 shadow-xl">
+          <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700 shadow-xl h-[500px]">
             <h2 class="text-xl font-semibold mb-4 flex items-center">
               <span class="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center mr-2">💬</span>
               Game Chat
             </h2>
-            <div class="h-64 overflow-y-auto mb-4 space-y-3">
-              <div v-for="message in messages" :key="message.id"
-                class="p-3 rounded-lg"
-                :class="{
-                  'bg-gray-700/30': message.type === 'system',
-                  'bg-gray-700/50': message.type === 'player'
-                }">
-                <div class="flex items-center mb-1">
-                  <span class="font-semibold text-red-400">{{ message.sender }}</span>
-                  <span class="text-gray-400 text-sm ml-2">{{ message.timestamp }}</span>
-                </div>
-                <p>{{ message.content }}</p>
-              </div>
-            </div>
-            <div class="flex space-x-2">
-              <input v-model="newMessage"
-                class="flex-1 p-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
-                placeholder="Type your message..."
-                @keyup.enter="sendMessage">
-              <button @click="sendMessage"
-                class="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-lg font-medium transform hover:scale-[1.02] transition-all duration-300 shadow-lg">
-                Send
-              </button>
-            </div>
+            <GameChat :game-id="gameId" :current-player="currentPlayer" />
           </div>
         </div>
       </div>
@@ -154,6 +131,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { db } from '../firebase/config';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import GameChat from './GameChat.vue';
 
 const route = useRoute();
 const gameId = route.params.id;

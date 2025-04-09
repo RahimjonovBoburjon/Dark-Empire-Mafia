@@ -10,7 +10,7 @@
             </h1>
           </a>
           <p class="text-gray-400">Game Room: {{ gameId }}</p>
-        </div>
+            </div>
         <div class="flex items-center space-x-4">
           <div class="bg-gray-800/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-gray-700">
             <span class="text-gray-400">Phase:</span>
@@ -19,9 +19,9 @@
           <div class="bg-gray-800/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-gray-700">
             <span class="text-gray-400">Players:</span>
             <span class="ml-2 font-semibold">{{ game.players.length }}/{{ game.maxPlayers }}</span>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       <!-- Main Game Area -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -48,9 +48,9 @@
               </div>
             </div>
           </div>
-        </div>
+          </div>
 
-        <!-- Game Actions -->
+          <!-- Game Actions -->
         <div class="lg:col-span-2">
           <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700 shadow-xl mb-8">
             <h2 class="text-xl font-semibold mb-4 flex items-center">
@@ -67,8 +67,8 @@
                       class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-all duration-300"
                       :class="{ 'ring-2 ring-red-500': currentVote === player.id }">
                       {{ player.name }}
-                    </button>
-                  </div>
+                </button>
+              </div>
                 </div>
               </div>
 
@@ -82,8 +82,8 @@
                       :class="{ 'ring-2 ring-red-500': mafiaTarget === player.id }">
                       {{ player.name }}
                     </button>
-                  </div>
-                </div>
+              </div>
+            </div>
 
                 <div v-if="currentPlayer.role === 'doctor'"
                   class="bg-gray-700/30 p-4 rounded-lg border border-gray-600">
@@ -93,8 +93,8 @@
                       class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-all duration-300"
                       :class="{ 'ring-2 ring-green-500': doctorTarget === player.id }">
                       {{ player.name }}
-                    </button>
-                  </div>
+                </button>
+              </div>
                 </div>
 
                 <div v-if="currentPlayer.role === 'detective'"
@@ -105,8 +105,8 @@
                       class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-all duration-300"
                       :class="{ 'ring-2 ring-blue-500': detectiveTarget === player.id }">
                       {{ player.name }}
-                    </button>
-                  </div>
+                </button>
+              </div>
                 </div>
               </div>
             </div>
@@ -206,7 +206,7 @@ const killPlayer = async (playerId) => {
         }
         return player;
       });
-      
+
       await updateDoc(gameRef, {
         players: updatedPlayers,
         lastNightAction: {
@@ -243,7 +243,7 @@ const sendMessage = async () => {
   };
 
   messages.value.push(message);
-  newMessage.value = '';
+    newMessage.value = '';
 };
 
 onMounted(() => {
@@ -261,4 +261,4 @@ onUnmounted(() => {
     unsubscribe();
   }
 });
-</script>
+</script> 

@@ -157,6 +157,35 @@
           </div>
         </div>
       </div>
+
+      <!-- Game Modal -->
+      <div v-if="showGameModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800/90 backdrop-blur-sm p-8 rounded-xl border border-gray-700 shadow-xl max-w-md w-full mx-4">
+          <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span class="text-2xl">⚠️</span>
+            </div>
+            <h3 class="text-2xl font-semibold mb-2">You're Already in a Game</h3>
+            <p class="text-gray-400 mb-6">
+              You are currently in game "{{ currentGame?.id }}". Please finish or leave your current game before joining another one.
+            </p>
+          </div>
+          <div class="flex justify-center space-x-4">
+            <button 
+              @click="router.push(`/game/${currentGame?.id}`)" 
+              class="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-lg font-medium transform hover:scale-[1.02] transition-all duration-300 shadow-lg"
+            >
+              Go to Current Game
+            </button>
+            <button 
+              @click="showGameModal = false" 
+              class="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transform hover:scale-[1.02] transition-all duration-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -175,6 +204,8 @@ const activeGames = ref([]);
 const previousGames = ref([]);
 const loading = ref(true);
 const maxPlayers = ref(8); // Default to 8 players
+const currentGame = ref(null);
+const showGameModal = ref(false);
 
 let unsubscribe = null;
 
@@ -231,18 +262,46 @@ const createGame = async () => {
   }
 };
 
+const checkPlayerInGame = async () => {
+  try {
+    const playerId = localStorage.getItem('playerId');
+    if (!playerId) return false;
+
+    const gamesSnapshot = await getDocs(collection(db, 'games'));
+    for (const doc of gamesSnapshot.docs) {
+      const game = doc.data();
+      if (game.players.some(player => player.id === playerId)) {
+        currentGame.value = {
+          id: doc.id,
+          ...game
+        };
+        return true;
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('Error checking player games:', error);
+    return false;
+  }
+};
+
 const joinGame = async () => {
   if (!joinPlayerName.value.trim() || !gameCode.value.trim()) return;
 
   try {
-    const playerId = Date.now().toString();
-    localStorage.setItem('playerId', playerId);
-    
+    const isInGame = await checkPlayerInGame();
+    if (isInGame) {
+      showGameModal.value = true;
+      return;
+    }
+
+    const playerId = localStorage.getItem('playerId');
     const gameRef = doc(db, 'games', gameCode.value);
     const gameDoc = await getDoc(gameRef);
 
     if (gameDoc.exists()) {
       const game = gameDoc.data();
+      
       if (game.players.length < game.maxPlayers) {
         // Save to previous games
         saveToPreviousGames({
@@ -251,9 +310,12 @@ const joinGame = async () => {
           maxPlayers: game.maxPlayers
         });
         
+        const newPlayerId = Date.now().toString();
+        localStorage.setItem('playerId', newPlayerId);
+        
         await updateDoc(gameRef, {
           players: [...game.players, {
-            id: playerId,
+            id: newPlayerId,
             name: joinPlayerName.value,
             role: null,
             isAlive: true
@@ -271,11 +333,22 @@ const joinGame = async () => {
   }
 };
 
-const joinSpecificGame = (gameId) => {
+const joinSpecificGame = async (gameId) => {
   if (!joinPlayerName.value.trim()) {
     alert('Please enter your name first!');
     return;
   }
+
+  try {
+    const isInGame = await checkPlayerInGame();
+    if (isInGame) {
+      showGameModal.value = true;
+      return;
+    }
+  } catch (error) {
+    console.error('Error checking game status:', error);
+  }
+
   gameCode.value = gameId;
   joinGame();
 };
@@ -359,12 +432,15 @@ const getMafiaCount = (playerCount) => {
   return 4; // For 15-20 players
 };
 
-onMounted(() => {
+onMounted(async () => {
   // Load previous games from localStorage
   const savedGames = localStorage.getItem('previousGames');
   if (savedGames) {
     previousGames.value = JSON.parse(savedGames);
   }
+  
+  // Check if player is in any game
+  await checkPlayerInGame();
   fetchActiveGames();
 });
 

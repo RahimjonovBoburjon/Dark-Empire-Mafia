@@ -1,6 +1,59 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-4">
-    <div class="max-w-6xl mx-auto">
+  <div 
+    class="min-h-screen text-white p-4 transition-all duration-1000"
+    :class="{
+      'bg-gradient-to-br from-blue-400 to-blue-600': isDay,
+      'bg-gradient-to-br from-orange-500 to-purple-800': isEvening,
+      'bg-gradient-to-br from-gray-900 to-gray-800': isNight
+    }"
+  >
+    <!-- Sun/Moon Animation -->
+    <div 
+      class="fixed top-8 right-8 w-24 h-24 rounded-full transition-all duration-1000"
+      :class="{
+        'bg-yellow-400 shadow-[0_0_50px_rgba(255,255,0,0.5)] animate-pulse': isDay,
+        'bg-orange-500 shadow-[0_0_50px_rgba(255,165,0,0.5)] animate-pulse': isEvening,
+        'bg-gray-300 shadow-[0_0_50px_rgba(255,255,255,0.3)]': isNight
+      }"
+    >
+      <div 
+        v-if="isNight"
+        class="absolute inset-0 flex items-center justify-center text-4xl"
+      >
+        🌙
+      </div>
+    </div>
+
+    <!-- Stars for Night -->
+    <div v-if="isNight" class="fixed inset-0 overflow-hidden">
+      <div 
+        v-for="n in 50" 
+        :key="n"
+        class="absolute w-1 h-1 bg-white rounded-full animate-pulse"
+        :style="{
+          top: `${Math.random() * 100}%`,
+          left: `${Math.random() * 100}%`,
+          animationDelay: `${Math.random() * 5}s`,
+          opacity: Math.random()
+        }"
+      ></div>
+    </div>
+
+    <!-- Clouds for Day -->
+    <div v-if="isDay" class="fixed inset-0 overflow-hidden">
+      <div 
+        v-for="n in 5" 
+        :key="n"
+        class="absolute w-32 h-16 bg-white/30 rounded-full animate-cloud"
+        :style="{
+          top: `${Math.random() * 50}%`,
+          left: `${Math.random() * 100}%`,
+          animationDelay: `${Math.random() * 10}s`
+        }"
+      ></div>
+    </div>
+
+    <div class="max-w-6xl mx-auto relative z-10">
       <!-- Loading State -->
       <div v-if="loading" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
         <div class="flex flex-col items-center">
@@ -10,7 +63,7 @@
       </div>
 
       <header class="mb-12 text-center">
-        <h1 class="text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-red-800">
+        <h1 class="text-5xl p-2 font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-red-800">
           Dark Empire: Mafia
         </h1>
         <p class="text-gray-400 text-lg">Enter the shadows of deception and power</p>
@@ -206,6 +259,10 @@ const loading = ref(true);
 const maxPlayers = ref(8); // Default to 8 players
 const currentGame = ref(null);
 const showGameModal = ref(false);
+const currentTime = ref(new Date().getHours());
+const isDay = ref(currentTime.value >= 6 && currentTime.value < 18);
+const isEvening = ref(currentTime.value >= 18 && currentTime.value < 21);
+const isNight = ref(currentTime.value >= 21 || currentTime.value < 6);
 
 let unsubscribe = null;
 
@@ -432,6 +489,14 @@ const getMafiaCount = (playerCount) => {
   return 4; // For 15-20 players
 };
 
+const updateTime = () => {
+  const hour = new Date().getHours();
+  currentTime.value = hour;
+  isDay.value = hour >= 6 && hour < 18;
+  isEvening.value = hour >= 18 && hour < 21;
+  isNight.value = hour >= 21 || hour < 6;
+};
+
 onMounted(async () => {
   // Load previous games from localStorage
   const savedGames = localStorage.getItem('previousGames');
@@ -442,6 +507,10 @@ onMounted(async () => {
   // Check if player is in any game
   await checkPlayerInGame();
   fetchActiveGames();
+  
+  // Update time every minute
+  updateTime();
+  setInterval(updateTime, 60000);
 });
 
 // Clean up listener when component is unmounted
@@ -451,3 +520,36 @@ onUnmounted(() => {
   }
 });
 </script>
+
+<style>
+@keyframes cloud {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100vw); }
+}
+
+.animate-cloud {
+  animation: cloud 30s linear infinite;
+}
+
+/* Update existing styles */
+.bg-gray-800\/50 {
+  @apply bg-opacity-50;
+}
+
+.bg-gray-800\/90 {
+  @apply bg-opacity-90;
+}
+
+/* Add time-based text colors */
+.text-time {
+  @apply transition-colors duration-1000;
+}
+
+.text-time-day {
+  @apply text-gray-800;
+}
+
+.text-time-night {
+  @apply text-white;
+}
+</style>

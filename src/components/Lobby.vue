@@ -236,8 +236,7 @@ const createGame = async () => {
         id: playerId,
         name: playerName.value,
         role: null,
-        isAlive: true,
-        isHost: true
+        isAlive: true
       }],
       phase: 'lobby',
       maxPlayers: maxPlayers.value,
@@ -252,12 +251,7 @@ const createGame = async () => {
     // Save to previous games
     const gameData = {
       id: gameRef.id,
-      players: [{ 
-        id: playerId, 
-        name: playerName.value, 
-        isAlive: true,
-        isHost: true
-      }],
+      players: [{ id: playerId, name: playerName.value, isAlive: true }],
       maxPlayers: maxPlayers.value
     };
     saveToPreviousGames(gameData);

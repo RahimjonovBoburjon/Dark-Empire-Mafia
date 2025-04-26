@@ -44,17 +44,17 @@
     <!-- Game Content -->
     <div class="relative z-10 p-4">
       <!-- Game Started Animation -->
-      <div v-if="showGameStart" class="fixed inset-0 bg-black/75 flex items-center justify-center z-50">
-        <div class="text-center">
-          <div class="w-32 h-32 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+      <div v-if="showGameStart" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+        <div class="text-center w-full max-w-2xl mx-auto px-4">
+          <div class="w-32 h-32 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4 mx-auto"></div>
           <h2 class="text-4xl font-bold mb-2 text-white animate-pulse">Game Started!</h2>
           <p class="text-xl text-gray-300">The night falls upon the city...</p>
         </div>
       </div>
 
       <!-- Day/Night Transition -->
-      <div v-if="showTransition" class="fixed inset-0 bg-black/75 flex items-center justify-center z-50">
-        <div class="text-center">
+      <div v-if="showTransition" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+        <div class="text-center w-full max-w-2xl mx-auto px-4">
           <h2 class="text-4xl font-bold mb-2 text-white animate-pulse">
             {{ isDay ? 'Day breaks!' : 'Night falls!' }}
           </h2>
@@ -65,9 +65,9 @@
       </div>
 
       <!-- Death Animation -->
-      <div v-if="showDeath" class="fixed inset-0 bg-black/75 flex items-center justify-center z-50">
-        <div class="text-center">
-          <div class="w-32 h-32 bg-red-500 rounded-full flex items-center justify-center mb-4 animate-pulse">
+      <div v-if="showDeath" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+        <div class="text-center w-full max-w-2xl mx-auto px-4">
+          <div class="w-32 h-32 bg-red-500 rounded-full flex items-center justify-center mb-4 animate-pulse mx-auto">
             <span class="text-6xl">💀</span>
           </div>
           <h2 class="text-4xl font-bold mb-2 text-white">Player Eliminated!</h2>
@@ -76,7 +76,7 @@
       </div>
 
       <!-- Main Game Content -->
-      <div class="max-w-6xl mx-auto">
+      <div class="max-w-7xl mx-auto px-4">
         <!-- Game Header -->
         <header class="mb-8 flex items-center justify-between">
           <div>
